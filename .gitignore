@@ -1,0 +1,19 @@
+# Environments
+venv/
+.env
+.venv/
+env/
+__pycache__/
+
+# Data
+data/
+faiss_index/
+*.sqlite
+*.db
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
