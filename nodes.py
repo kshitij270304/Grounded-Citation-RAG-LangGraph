@@ -59,13 +59,19 @@ def grade_citation(llm_output: AnswerWithCitation, docs: List[Document]) -> bool
     Anti-hallucination engine: takes the LLM's JSON output and checks if the string inside citation 
     actually exists within the raw text of the retrieved chunks.
     """
+    import re
     retrieved_text = " ".join([doc.page_content for doc in docs])
     
-    # Check if citation exists in the retrieved text
-    if llm_output.citation in retrieved_text:
+    # Strip all non-alphanumeric characters (keep only letters and numbers)
+    # This prevents PDF encoding errors (like '') and punctuation mismatches from causing false failures
+    clean_text = re.sub(r'[^a-zA-Z0-9]', '', retrieved_text).lower()
+    clean_citation = re.sub(r'[^a-zA-Z0-9]', '', llm_output.citation).lower()
+    
+    # Check if citation exists in the clean text
+    if clean_citation in clean_text:
         return True
     
-    # If the LLM correctly identified that the data is not available, we can consider the citation check passed.
+    # If the LLM correctly identified that the data is not available, consider the check passed
     if llm_output.citation == 'Data not available':
         return True
         
