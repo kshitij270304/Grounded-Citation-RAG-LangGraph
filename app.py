@@ -2,17 +2,27 @@ import streamlit as st
 from graph import app as langgraph_app
 
 # Page config
-st.set_page_config(page_title="Grounded Citation RAG", page_icon="⚖️")
+st.set_page_config(page_title="Grounded Citation RAG")
+
+# Custom CSS for a designer dark blue flare background
+st.markdown("""
+<style>
+    .stApp {
+        background: radial-gradient(circle at center, rgba(15, 50, 120, 0.4) 0%, #0e1117 80%) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # UI Layout
 st.title("Grounded Citation RAG System")
 st.markdown("""
 **Welcome to the EU AI Act Compliance Assistant!**
 
-This system uses a **LangGraph agentic workflow** to answer your questions. It features an autonomous **self-correcting anti-hallucination loop**: 
-1. It retrieves documents using FAISS.
-2. It generates an answer using Gemini 3.6 Flash.
-3. A grader verifies if the exact quote was used. If not, it loops back and forces the AI to correct itself before showing you the answer!
+This system is powered by an advanced LangGraph Agentic Workflow designed for zero-hallucination legal compliance:
+
+1. Hybrid Retrieval: It scans the legal text using both Semantic Search (FAISS) and Keyword Search (BM25) simultaneously.  
+2. Strict Generation: The Gemini API analyzes the chunks and answers your question based only on the text.  
+3. Autonomous Grader: A validation node ensures the citation is a perfect word-for-word match to the raw PDF. If it detects a hallucination, it routes the graph backwards and forces the AI to correct itself!
 """)
 
 # Chat input

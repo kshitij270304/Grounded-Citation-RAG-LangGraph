@@ -47,8 +47,9 @@ def generate_node(state: GraphState):
     
     system_prompt = (
         "You are a strict compliance assistant. Answer the question using ONLY the provided context. "
-        "You must extract the exact, word-for-word sentence you used to form your answer and place it in the citation field. "
-        "If the answer is not in the text, output 'Data not available'."
+        "You are allowed to make obvious logical inferences (such as recognizing that a phrase followed by an acronym in parentheses defines that acronym). "
+        "You must extract the exact, word-for-word snippet or sentence you used to form your answer and place it in the citation field. "
+        "If the answer cannot be reasonably inferred from the text, output 'Data not available'."
     )
     
     # Crucial logic: modify prompt if hallucination occurred previously
@@ -125,7 +126,7 @@ app = workflow.compile()
 
 if __name__ == "__main__":
     # Test the LangGraph workflow
-    inputs = {"question": "What is the purpose of this Regulation?"}
+    inputs = {"question": "What does the acronym TFEU stand for?"}
     
     print("Starting LangGraph execution...\n")
     for output in app.stream(inputs):

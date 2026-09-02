@@ -11,40 +11,53 @@ load_dotenv()
 
 FAISS_INDEX_PATH = "faiss_index"
 
-from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 
 def retrieve_docs(query: str) -> List[Document]:
     """
     Takes a user query, queries the FAISS index + BM25, and returns the top 3 most relevant text chunks
-    using Hybrid Search (EnsembleRetriever).
+    using custom Hybrid Search interleaving.
     """
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    # allow_dangerous_deserialization=True is required in newer LangChain versions to load local FAISS index
+    
+    # 1. FAISS Retriever (Semantic Search)
     vectorstore = FAISS.load_local(
         FAISS_INDEX_PATH, 
         embeddings,
         allow_dangerous_deserialization=True
     )
-    
-    # 1. FAISS Retriever (Semantic Search)
-    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    # Set to k=5 for the perfect balance of accuracy and context window size
+    faiss_docs = vectorstore.similarity_search(query, k=5)
     
     # 2. BM25 Retriever (Keyword Search)
-    # Extract the raw documents already saved inside the FAISS docstore
-    docs = list(vectorstore.docstore._dict.values())
-    bm25_retriever = BM25Retriever.from_documents(docs)
-    bm25_retriever.k = 3
+    all_docs = list(vectorstore.docstore._dict.values())
     
-    # 3. Ensemble Retriever (Hybrid Search)
-    ensemble_retriever = EnsembleRetriever(
-        retrievers=[bm25_retriever, faiss_retriever],
-        weights=[0.5, 0.5]  # Give equal weight to keyword and semantic search
-    )
+    import re
+    def custom_bm25_tokenizer(text: str) -> List[str]:
+        # Extract only alphanumeric words, avoiding punctuation issues like (TFEU)
+        return re.findall(r'\w+', text.lower())
+        
+    bm25_retriever = BM25Retriever.from_documents(all_docs, preprocess_func=custom_bm25_tokenizer)
+    bm25_retriever.k = 5
+    bm25_docs = bm25_retriever.invoke(query)
     
-    # Get hybrid results (Ensemble returns a ranked list, we slice to top 3)
-    results = ensemble_retriever.invoke(query)
-    return results[:3]
+    # 3. Combine Results (Interleaving FAISS and BM25)
+    # This acts like a lightweight EnsembleRetriever
+    combined_docs = []
+    seen_contents = set()
+    
+    # Pair them up and interleave them (FAISS gets slight priority by being first)
+    for faiss_doc, bm25_doc in zip(faiss_docs, bm25_docs):
+        if faiss_doc.page_content not in seen_contents:
+            combined_docs.append(faiss_doc)
+            seen_contents.add(faiss_doc.page_content)
+            
+        if bm25_doc.page_content not in seen_contents:
+            combined_docs.append(bm25_doc)
+            seen_contents.add(bm25_doc.page_content)
+            
+    # Return exactly top 5 (you will get 5 chunks minimum, up to 10 max if there is no overlap)
+    return combined_docs[:5]
 
 class AnswerWithCitation(BaseModel):
     answer: str = Field(description="The answer to the user's question.")

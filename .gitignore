@@ -7,7 +7,6 @@ __pycache__/
 
 # Data
 data/
-faiss_index/
 *.sqlite
 *.db
 
