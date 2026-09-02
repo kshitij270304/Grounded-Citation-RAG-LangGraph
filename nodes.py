@@ -11,9 +11,13 @@ load_dotenv()
 
 FAISS_INDEX_PATH = "faiss_index"
 
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+
 def retrieve_docs(query: str) -> List[Document]:
     """
-    Takes a user query, queries the FAISS index, and returns the top 3 most relevant text chunks.
+    Takes a user query, queries the FAISS index + BM25, and returns the top 3 most relevant text chunks
+    using Hybrid Search (EnsembleRetriever).
     """
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
     # allow_dangerous_deserialization=True is required in newer LangChain versions to load local FAISS index
@@ -22,8 +26,25 @@ def retrieve_docs(query: str) -> List[Document]:
         embeddings,
         allow_dangerous_deserialization=True
     )
-    docs = vectorstore.similarity_search(query, k=3)
-    return docs
+    
+    # 1. FAISS Retriever (Semantic Search)
+    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    
+    # 2. BM25 Retriever (Keyword Search)
+    # Extract the raw documents already saved inside the FAISS docstore
+    docs = list(vectorstore.docstore._dict.values())
+    bm25_retriever = BM25Retriever.from_documents(docs)
+    bm25_retriever.k = 3
+    
+    # 3. Ensemble Retriever (Hybrid Search)
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[bm25_retriever, faiss_retriever],
+        weights=[0.5, 0.5]  # Give equal weight to keyword and semantic search
+    )
+    
+    # Get hybrid results (Ensemble returns a ranked list, we slice to top 3)
+    results = ensemble_retriever.invoke(query)
+    return results[:3]
 
 class AnswerWithCitation(BaseModel):
     answer: str = Field(description="The answer to the user's question.")
