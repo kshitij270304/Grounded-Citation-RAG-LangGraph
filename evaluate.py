@@ -11,7 +11,15 @@ TEST_CASES = [
     "According to the NIST framework, is AI risk management a one-time activity or a continuous process?",
     "Does the NIST AI RMF mandate strict legal compliance for all organizations?",
     "If a company is deploying an AI system, which of our documents provides mandatory legal requirements, and which provides voluntary risk management guidelines?",
-    "How do the EU AI Act and the NIST AI RMF differ in their fundamental approach to AI?"
+    "How do the EU AI Act and the NIST AI RMF differ in their fundamental approach to AI?",
+    
+    # New Test Cases for Comprehensive Coverage
+    "What are the four core functions of the NIST AI RMF profile?",
+    "Does the EU AI Act prohibit any specific types of AI systems entirely? If so, which ones?",
+    "What are the requirements for transparency in generative AI models under the EU AI Act?",
+    "How does the NIST AI RMF define 'AI risk' and how is it measured?",
+    "What role does human oversight play in the deployment of high-risk AI systems under the EU AI Act?",
+    "Are there any specific exemptions mentioned in the EU AI Act for national security?"
 ]
 
 def run_evals():

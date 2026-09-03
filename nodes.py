@@ -56,8 +56,8 @@ def retrieve_docs(query: str) -> List[Document]:
             combined_docs.append(bm25_doc)
             seen_contents.add(bm25_doc.page_content)
             
-    # Return exactly top 5 (you will get 5 chunks minimum, up to 10 max if there is no overlap)
-    return combined_docs[:5]
+    # Return up to top 10 chunks to ensure we don't discard valid FAISS/BM25 results
+    return combined_docs[:10]
 
 class AnswerWithCitation(BaseModel):
     reasoning: str = Field(description="Explain step-by-step how you interpreted the context to find the answer.")

@@ -38,5 +38,35 @@
         "hallucination_retries": 0,
         "is_valid": true,
         "timestamp": "2026-09-03T17:36:09.112027"
+    },
+    {
+        "query": "What are the four core functions of the NIST AI RMF profile?",
+        "reasoning": "The context specifies under Figure 5 that the functions organize AI risk management activities at their highest level into four main categories: govern, map, measure, and manage.",
+        "answer": "The four core functions of the NIST AI RMF are govern, map, measure, and manage.",
+        "citation": "Functions organize AI risk management activities at their highest level to govern, map, measure, and manage AI risks.",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T23:18:44.650570"
+    },
+    {
+        "query": "Does the EU AI Act prohibit any specific types of AI systems entirely? If so, which ones?",
+        "reasoning": "The provided context discusses the scope, purpose, and specific exclusions regarding biometric verification and law enforcement rules under the EU AI Act, but it does not mention whether specific types of AI systems are prohibited entirely.",
+        "answer": "Data not available",
+        "citation": "Data not available",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T23:22:40.044270"
+    },
+    {
+        "query": "What are the four core functions of the NIST AI RMF profile?",
+        "reasoning": "The context states that AI risk management activities are organized at their highest level into four functions: govern, map, measure, and manage.",
+        "answer": "The four core functions are govern, map, measure, and manage.",
+        "citation": "Functions organize AI risk management activities at their highest level to govern, map, measure, and manage AI risks.",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T23:48:38.241118"
     }
 ]
