@@ -45,12 +45,20 @@ def validate_query_node(state: GraphState):
     ])
     chain = prompt | llm
     
-    try:
-        res = chain.invoke({"query": question}).content.strip().upper()
-        is_valid = "INVALID" not in res
-    except Exception as e:
-        is_valid = True # Failsafe
-        
+    import time
+    is_valid = True
+    for attempt in range(3):
+        try:
+            res = chain.invoke({"query": question}).content.strip().upper()
+            is_valid = "INVALID" not in res
+            break
+        except Exception as e:
+            if "429" in str(e) or "RateLimit" in str(e) or "503" in str(e):
+                print(f"API busy or Rate Limit hit in validate. Sleeping 20s... (Attempt {attempt+1}/3)")
+                time.sleep(20)
+            else:
+                break
+                
     if not is_valid:
         print("[GUARDRAIL TRIGGERED] Query is off-topic. Blocking retrieval.")
         return {"generation": {"reasoning": "The pre-tool guardrail detected an off-topic query. Retrieval was bypassed to save tokens.", "answer": "I can only answer questions related to the EU AI Act and NIST AI RMF.", "citation": "Data not available"}}
@@ -82,7 +90,6 @@ def generate_node(state: GraphState):
         "If the answer cannot be reasonably inferred from the text, output 'Data not available'."
     )
     
-    # Crucial logic: modify prompt if hallucination occurred previously
     if revision_count > 0:
         print(f"Revision Count is {revision_count}. Injecting hallucination warning...")
         system_prompt += "\n\nWarning: Your previous citation was hallucinated. You must pull the exact text from the documents."
@@ -93,7 +100,23 @@ def generate_node(state: GraphState):
     ])
     
     chain = prompt | structured_llm
-    result = chain.invoke({"context": context, "query": question})
+    
+    import time
+    result = None
+    for attempt in range(4):
+        try:
+            result = chain.invoke({"context": context, "query": question})
+            break
+        except Exception as e:
+            if "429" in str(e) or "RateLimit" in str(e) or "503" in str(e):
+                print(f"API busy or Rate Limit hit in generate. Sleeping 30s... (Attempt {attempt+1}/4)")
+                time.sleep(30)
+            else:
+                raise e
+                
+    if not result:
+        # Failsafe if it completely fails 4 times
+        result = AnswerWithCitation(reasoning="API completely overloaded after retries.", answer="API Error: Google Gemini is currently overloaded. Please try again later.", citation="Data not available")
     
     print(f"Generated Reasoning: {result.reasoning}")
     print(f"Generated Answer: {result.answer}")
