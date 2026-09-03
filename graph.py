@@ -45,19 +45,13 @@ def validate_query_node(state: GraphState):
     ])
     chain = prompt | llm
     
-    import time
-    is_valid = True
-    for attempt in range(3):
-        try:
-            res = chain.invoke({"query": question}).content.strip().upper()
-            is_valid = "INVALID" not in res
-            break
-        except Exception as e:
-            if "429" in str(e) or "RateLimit" in str(e) or "503" in str(e):
-                print(f"API busy or Rate Limit hit in validate. Sleeping 20s... (Attempt {attempt+1}/3)")
-                time.sleep(20)
-            else:
-                break
+    try:
+        res = chain.invoke({"query": question}).content.strip().upper()
+        is_valid = "INVALID" not in res
+    except Exception as e:
+        if "429" in str(e) or "Quota" in str(e) or "RateLimit" in str(e):
+            return {"generation": {"reasoning": "Google Gemini API rate limit exceeded during pre-tool validation.", "answer": "API Error: You have hit the Gemini free-tier rate limit (15 requests per minute). Please wait 60 seconds and try again.", "citation": "Data not available"}}
+        is_valid = True # Failsafe
                 
     if not is_valid:
         print("[GUARDRAIL TRIGGERED] Query is off-topic. Blocking retrieval.")
@@ -101,22 +95,13 @@ def generate_node(state: GraphState):
     
     chain = prompt | structured_llm
     
-    import time
-    result = None
-    for attempt in range(4):
-        try:
-            result = chain.invoke({"context": context, "query": question})
-            break
-        except Exception as e:
-            if "429" in str(e) or "RateLimit" in str(e) or "503" in str(e):
-                print(f"API busy or Rate Limit hit in generate. Sleeping 30s... (Attempt {attempt+1}/4)")
-                time.sleep(30)
-            else:
-                raise e
-                
-    if not result:
-        # Failsafe if it completely fails 4 times
-        result = AnswerWithCitation(reasoning="API completely overloaded after retries.", answer="API Error: Google Gemini is currently overloaded. Please try again later.", citation="Data not available")
+    try:
+        result = chain.invoke({"context": context, "query": question})
+    except Exception as e:
+        if "429" in str(e) or "Quota" in str(e) or "RateLimit" in str(e):
+            result = AnswerWithCitation(reasoning="Google Gemini API rate limit exceeded during generation.", answer="API Error: You have hit the Gemini free-tier rate limit (15 requests per minute). Please wait 60 seconds and try again.", citation="Data not available")
+        else:
+            result = AnswerWithCitation(reasoning=f"API Error: {str(e)}", answer="API Error: An unexpected error occurred.", citation="Data not available")
     
     print(f"Generated Reasoning: {result.reasoning}")
     print(f"Generated Answer: {result.answer}")
