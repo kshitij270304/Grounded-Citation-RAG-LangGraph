@@ -38,7 +38,7 @@ def validate_query_node(state: GraphState):
     question = state["question"]
     print(f"\n---VALIDATE QUERY (PRE-TOOL GUARDRAIL)---")
     
-    llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a pre-retrieval guardrail. Reply EXACTLY with 'VALID' if the user's query is about AI, regulations, NIST, EU AI Act, risk management, or compliance. Reply EXACTLY with 'INVALID' if it is off-topic (e.g. recipes, coding, casual chat)."),
         ("human", "Query: {query}")
@@ -72,7 +72,7 @@ def generate_node(state: GraphState):
     documents = state["documents"]
     revision_count = state.get("revision_count", 0)
     
-    llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
     structured_llm = llm.with_structured_output(AnswerWithCitation)
     
     context = "\n\n".join([doc.page_content for doc in documents])
