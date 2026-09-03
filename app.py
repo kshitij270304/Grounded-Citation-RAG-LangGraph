@@ -40,11 +40,47 @@ if query:
             # Run the compiled LangGraph application
             final_result = langgraph_app.invoke(inputs)
             
+            # --- AUDIT TRAIL LOGGING ---
+            import json
+            import os
+            from datetime import datetime
+            audit_log = {
+                "query": query,
+                "reasoning": final_result.get("generation", {}).get("reasoning", ""),
+                "answer": final_result.get("generation", {}).get("answer", ""),
+                "citation": final_result.get("generation", {}).get("citation", ""),
+                "retrieved_chunks_count": len(final_result.get("documents", [])),
+                "hallucination_retries": final_result.get("revision_count", 0),
+                "is_valid": final_result.get("is_valid", False),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            audit_file = "audit_trail.json"
+            if os.path.exists(audit_file):
+                with open(audit_file, "r") as f:
+                    try:
+                        logs = json.load(f)
+                    except json.JSONDecodeError:
+                        logs = [] # Failsafe if file is corrupted
+            else:
+                logs = []
+                
+            logs.append(audit_log)
+            
+            with open(audit_file, "w") as f:
+                json.dump(logs, f, indent=4)
+            # ---------------------------
+            
             # Extract the final answer and citation
             generation = final_result.get("generation", {})
+            reasoning = generation.get("reasoning", "No reasoning provided.")
             answer = generation.get("answer", "No answer generated.")
             citation = generation.get("citation", "No citation provided.")
             
+            # Render the reasoning in an expander
+            with st.expander("View Agent Reasoning"):
+                st.write(reasoning)
+                
             # Render the final answer in a standard text block
             st.write(answer)
             

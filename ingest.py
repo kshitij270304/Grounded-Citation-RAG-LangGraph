@@ -34,15 +34,19 @@ def main():
 
     # 1. Download data
     download_pdf(PDF_URL, PDF_PATH)
+    NIST_URL = "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf"
+    NIST_PATH = "data/NIST_AI_RMF.pdf"
+    download_pdf(NIST_URL, NIST_PATH)
 
     # 2. Load the document
-    print("Loading document...")
+    print("Loading documents...")
     loader = PyPDFLoader(PDF_PATH)
-    docs = loader.load()
+    docs = loader.load()[:20] # Increased back to 20 pages
     
-    # Keep it to 5 pages to avoid free-tier API rate limits
-    docs = docs[:5]
-    print(f"Loaded {len(docs)} pages.")
+    nist_loader = PyPDFLoader(NIST_PATH)
+    docs.extend(nist_loader.load()[:20]) # Increased back to 20 pages
+    
+    print(f"Loaded {len(docs)} pages total.")
 
     # 3. Chunk the document
     print("Chunking document...")
@@ -53,14 +57,33 @@ def main():
     chunks = text_splitter.split_documents(docs)
     print(f"Created {len(chunks)} chunks.")
 
-    # 4. Embed and store
-    print("Embedding and storing in FAISS...")
+    # 4. Embed and store in batches to avoid API limits
+    print("Embedding and storing in FAISS (with rate limit handling)...")
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    vectorstore = FAISS.from_documents(chunks, embeddings)
+    
+    import time
+    print("Waiting 65 seconds before starting to ensure Gemini Free Tier quota is fully reset...")
+    time.sleep(65)
+    
+    vectorstore = None
+    batch_size = 20  # Ultra-safe batch size
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i+batch_size]
+        print(f"Processing batch {i//batch_size + 1}/{(len(chunks)-1)//batch_size + 1}...")
+        
+        if vectorstore is None:
+            vectorstore = FAISS.from_documents(batch, embeddings)
+        else:
+            vectorstore.add_documents(batch)
+            
+        if i + batch_size < len(chunks):
+            print("Sleeping for 65 seconds to respect Gemini API Free Tier limits...")
+            time.sleep(65)
 
     # 5. Save the FAISS index to disk
-    vectorstore.save_local(FAISS_INDEX_PATH)
-    print(f"FAISS index saved to {FAISS_INDEX_PATH}")
+    if vectorstore:
+        vectorstore.save_local(FAISS_INDEX_PATH)
+        print(f"FAISS index saved to {FAISS_INDEX_PATH}")
 
 if __name__ == "__main__":
     main()

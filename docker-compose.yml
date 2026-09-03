@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  agent-api:
+    build: .
+    container_name: grounded_rag_app
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./faiss_index:/app/faiss_index
+      - ./data:/app/data

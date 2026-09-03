@@ -1,0 +1,42 @@
+[
+    {
+        "query": "What is the primary purpose of the EU AI Act according to the regulation?",
+        "reasoning": "The text states that the Regulation aims to promote human-centric and trustworthy AI while protecting health, safety, fundamental rights (such as democracy, rule of law, and environmental protection), shielding against harmful effects of AI systems, and supporting innovation.",
+        "answer": "The purpose of the regulation is to promote human-centric and trustworthy artificial intelligence (AI) while ensuring a high level of protection for health, safety, and fundamental rights (including democracy, the rule of law, and environmental protection), protecting against the harmful effects of AI systems, and supporting innovation.",
+        "citation": "human centric and trustworthy artificial intelligence (AI) while ensuring a high level of protection of health, safety, fundamental rights as enshrined in the Charter of Fundamental Rights of the European Union (the \u2018Charter\u2019), including democracy, the rule of law and environmental protection, to protect against the harmful effects of AI systems in the Union, and to support innovation.",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T17:20:22.175132"
+    },
+    {
+        "query": "Who is the intended audience for the NIST AI Risk Management Framework?",
+        "reasoning": "The provided text contains a Table of Contents listing a section titled '2 Audience 9', but the actual text defining or describing the intended audience is omitted from the context.",
+        "answer": "Data not available",
+        "citation": "Data not available",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T17:21:56.513591"
+    },
+    {
+        "query": "What does the acronym TFEU stand for?",
+        "reasoning": "The text opens by referencing the 'Treaty on the Functioning of the European Union, and in particular Articles 16 and 114 thereof', and later refers to 'Article 16 TFEU'. Through obvious logical inference, TFEU stands for Treaty on the Functioning of the European Union.",
+        "answer": "Treaty on the Functioning of the European Union",
+        "citation": "Having regard to the Treaty on the Functioning of the European Union, and in particular Articles 16 and 114 thereof,",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T17:31:43.522385"
+    },
+    {
+        "query": "What does the acronym TFEU stand for?",
+        "reasoning": "The text refers to the 'Treaty on the Functioning of the European Union' and later mentions 'Article 16 TFEU', corresponding to the earlier reference of 'Articles 16 and 114 thereof' [of the Treaty on the Functioning of the European Union]. Thus, TFEU stands for Treaty on the Functioning of the European Union.",
+        "answer": "TFEU stands for Treaty on the Functioning of the European Union.",
+        "citation": "Having regard to the Treaty on the Functioning of the European Union, and in particular Articles 16 and 114 thereof,",
+        "retrieved_chunks_count": 5,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-03T17:36:09.112027"
+    }
+]

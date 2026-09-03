@@ -5,6 +5,35 @@
 ## Overview
 Grounded Citation RAG is an AI-powered legal compliance assistant tailored for querying the EU AI Act. It utilizes an advanced agentic workflow to ensure high-fidelity, zero-hallucination responses by grounding every answer with an exact, word-for-word citation from the source legal document.
 
+## Architecture & Workflow
+
+```mermaid
+graph TD
+    User([User]) --> |Queries| UI[Streamlit UI]
+    UI --> |Triggers| Graph[LangGraph Workflow]
+    
+    subgraph "Phase 1: Ingestion"
+        PDF[EU AI Act PDF] --> PyPDF[PyPDF Loader]
+        PyPDF --> Split[Recursive Character Splitter]
+        Split --> Embed[Gemini Embeddings]
+        Embed --> FAISS[(FAISS Vector Store)]
+    end
+    
+    subgraph "Phase 2: Agentic Workflow"
+        Graph --> Node1{Retrieve Node}
+        Node1 --> |Hybrid Search| FAISS
+        Node1 --> |Keyword Search| BM25[(BM25 Index)]
+        
+        Node1 --> Node2{Generate Node}
+        Node2 --> LLM[Gemini 3.6 Flash]
+        LLM --> |Structured Output| Node3{Grade Node}
+        
+        Node3 --> |Checks Citation Match| Eval{Valid?}
+        Eval -->|No| Node2
+        Eval -->|Yes| End([Final Output])
+    end
+```
+
 ## How It Works
 The system is built on a **LangGraph Agentic Workflow** and follows a strict, self-correcting pipeline:
 1. **Hybrid Retrieval:** Scans legal texts using both Semantic Search (FAISS) and Keyword Search (BM25) simultaneously for highly relevant context gathering.

@@ -60,6 +60,7 @@ def retrieve_docs(query: str) -> List[Document]:
     return combined_docs[:5]
 
 class AnswerWithCitation(BaseModel):
+    reasoning: str = Field(description="Explain step-by-step how you interpreted the context to find the answer.")
     answer: str = Field(description="The answer to the user's question.")
     citation: str = Field(description="The exact, word-for-word sentence used to form the answer. If the answer is not in the text, output 'Data not available'.")
 

@@ -34,6 +34,36 @@ def retrieve_node(state: GraphState):
     
     return {"documents": documents, "question": question, "revision_count": revision_count}
 
+def validate_query_node(state: GraphState):
+    question = state["question"]
+    print(f"\n---VALIDATE QUERY (PRE-TOOL GUARDRAIL)---")
+    
+    llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a pre-retrieval guardrail. Reply EXACTLY with 'VALID' if the user's query is about AI, regulations, NIST, EU AI Act, risk management, or compliance. Reply EXACTLY with 'INVALID' if it is off-topic (e.g. recipes, coding, casual chat)."),
+        ("human", "Query: {query}")
+    ])
+    chain = prompt | llm
+    
+    try:
+        res = chain.invoke({"query": question}).content.strip().upper()
+        is_valid = "INVALID" not in res
+    except Exception as e:
+        is_valid = True # Failsafe
+        
+    if not is_valid:
+        print("[GUARDRAIL TRIGGERED] Query is off-topic. Blocking retrieval.")
+        return {"generation": {"reasoning": "The pre-tool guardrail detected an off-topic query. Retrieval was bypassed to save tokens.", "answer": "I can only answer questions related to the EU AI Act and NIST AI RMF.", "citation": "Data not available"}}
+    else:
+        print("[GUARDRAIL PASSED] Query is on-topic. Proceeding to retrieval.")
+        return {}
+
+def route_after_validate(state: GraphState):
+    if state.get("generation"):
+        # Guardrail triggered and set a canned response
+        return "end"
+    return "retrieve"
+
 def generate_node(state: GraphState):
     print("\n---GENERATE ANSWER---")
     question = state["question"]
@@ -65,10 +95,11 @@ def generate_node(state: GraphState):
     chain = prompt | structured_llm
     result = chain.invoke({"context": context, "query": question})
     
+    print(f"Generated Reasoning: {result.reasoning}")
     print(f"Generated Answer: {result.answer}")
     print(f"Generated Citation: {result.citation}")
     
-    generation_dict = {"answer": result.answer, "citation": result.citation}
+    generation_dict = {"reasoning": getattr(result, 'reasoning', ''), "answer": result.answer, "citation": result.citation}
     
     return {"generation": generation_dict}
 
@@ -79,7 +110,7 @@ def grade_node(state: GraphState):
     revision_count = state.get("revision_count", 0)
     
     # Reconstruct the Pydantic model for our grader function
-    llm_output = AnswerWithCitation(answer=generation["answer"], citation=generation["citation"])
+    llm_output = AnswerWithCitation(reasoning=generation.get("reasoning", ""), answer=generation["answer"], citation=generation["citation"])
     is_valid = grade_citation(llm_output, documents)
     
     if not is_valid:
@@ -104,12 +135,21 @@ def route_after_grade(state: GraphState):
 # Build the Graph
 workflow = StateGraph(GraphState)
 
+workflow.add_node("validate", validate_query_node)
 workflow.add_node("retrieve", retrieve_node)
 workflow.add_node("generate", generate_node)
 workflow.add_node("grade", grade_node)
 
 # Set the flow
-workflow.set_entry_point("retrieve")
+workflow.set_entry_point("validate")
+workflow.add_conditional_edges(
+    "validate",
+    route_after_validate,
+    {
+        "retrieve": "retrieve",
+        "end": END
+    }
+)
 workflow.add_edge("retrieve", "generate")
 workflow.add_edge("generate", "grade")
 workflow.add_conditional_edges(
