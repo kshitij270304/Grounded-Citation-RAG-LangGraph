@@ -68,5 +68,25 @@
         "hallucination_retries": 0,
         "is_valid": true,
         "timestamp": "2026-09-03T23:48:38.241118"
+    },
+    {
+        "query": "Which expert group's ethics guidelines should be taken into account for high-risk AI systems?",
+        "reasoning": "Google Gemini API rate limit exceeded during generation.",
+        "answer": "API Error: You have hit the Gemini free-tier rate limit (15 requests per minute). Please wait 60 seconds and try again.",
+        "citation": "Data not available",
+        "retrieved_chunks_count": 8,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-04T00:50:41.079096"
+    },
+    {
+        "query": "According to the text, what are at least five specific industries or areas where AI can support beneficial outcomes?",
+        "reasoning": "The text lists several specific areas and industries where AI supports socially and environmentally beneficial outcomes. Five examples can be taken directly from the list provided at the beginning of the context.",
+        "answer": "At least five specific industries or areas mentioned in the text are healthcare, agriculture, food safety, education and training, and media.",
+        "citation": "outcomes, for example in healthcare, agriculture, food safety, education and training, media, sports, culture, \ninfrastructure management, energy, transport and logistics, public services, security, justice, resource and energy \nefficiency, environmental monitoring, the conservation and restoration of biodiversity and ecosystems and climate \nchange mitigation and adaptation.",
+        "retrieved_chunks_count": 8,
+        "hallucination_retries": 0,
+        "is_valid": true,
+        "timestamp": "2026-09-04T00:55:05.515567"
     }
 ]

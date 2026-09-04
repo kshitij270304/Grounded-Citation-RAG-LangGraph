@@ -8,29 +8,62 @@ Grounded Citation RAG is an AI-powered legal compliance assistant tailored for q
 ## Architecture & Workflow
 
 ```mermaid
-graph TD
-    User([User]) --> |Queries| UI[Streamlit UI]
-    UI --> |Triggers| Graph[LangGraph Workflow]
+flowchart TD
+    %% Styling Classes
+    classDef start_end fill:#f96,stroke:#333,stroke-width:2px;
+    classDef function fill:#bbf,stroke:#333,stroke-width:1px;
+    classDef node fill:#bfb,stroke:#333,stroke-width:2px;
+    classDef conditional fill:#fdd,stroke:#333,stroke-width:2px;
+    classDef storage fill:#eee,stroke:#333,stroke-dasharray: 5 5;
+
+    Start([User Inputs Query via Streamlit app.py]):::start_end
     
-    subgraph "Phase 1: Ingestion"
-        PDF[EU AI Act PDF] --> PyPDF[PyPDF Loader]
-        PyPDF --> Split[Recursive Character Splitter]
-        Split --> Embed[Gemini Embeddings]
-        Embed --> FAISS[(FAISS Vector Store)]
+    subgraph LangGraph State Machine ["LangGraph Workflow (graph.py)"]
+        
+        %% Step 1: Validation Node
+        N1["1. validate_query_node()"]:::node
+        Start --> N1
+        F1[["invoke(Gemini 3.8)"]]:::function
+        N1 -.->|Checks if query is AI/Law related| F1
+        
+        %% Step 2: Route after validate
+        C1{"2. route_after_validate()"}:::conditional
+        N1 --> C1
+        C1 -->|INVALID: route to end| End1([Bypass: Return 'Off-Topic' Error]):::start_end
+        
+        %% Step 3: Retrieval Node
+        N2["3. retrieve_node()"]:::node
+        C1 -->|VALID: route to retrieve| N2
+        F2[["retrieve_docs() in nodes.py"]]:::function
+        N2 -.-> F2
+        F2 -.->|Semantic Search| FAISS[(FAISS Index)]:::storage
+        F2 -.->|Keyword Search| BM25[(BM25 Retriever)]:::storage
+        
+        %% Step 4: Generation Node
+        N3["4. generate_node()"]:::node
+        N2 --> N3
+        F3[["invoke(Gemini 3.8) w/ AnswerWithCitation Schema"]]:::function
+        N3 -.->|Sends Context & Prompt| F3
+        
+        %% Step 5: Grade Node
+        N4["5. grade_node()"]:::node
+        N3 --> N4
+        F4[["grade_citation() in nodes.py"]]:::function
+        N4 -.-> F4
+        F4 -.->|Regex string match of citation inside chunks| CheckValid{Is exact match?}
+        
+        %% Step 6: Route after grade
+        C2{"6. route_after_grade()"}:::conditional
+        N4 --> C2
+        
+        %% Feedback loop
+        C2 -->|"is_valid == False & retries < 3<br>(Route to generate)"| N3
+        C2 -->|"is_valid == True OR max retries<br>(Route to end)"| End2([Return Final Generation State]):::start_end
     end
     
-    subgraph "Phase 2: Agentic Workflow"
-        Graph --> Node1{Retrieve Node}
-        Node1 --> |Hybrid Search| FAISS
-        Node1 --> |Keyword Search| BM25[(BM25 Index)]
-        
-        Node1 --> Node2{Generate Node}
-        Node2 --> LLM[Gemini 3.6 Flash]
-        LLM --> |Structured Output| Node3{Grade Node}
-        
-        Node3 --> |Checks Citation Match| Eval{Valid?}
-        Eval -->|No| Node2
-        Eval -->|Yes| End([Final Output])
+    subgraph Frontend & Observability ["app.py"]
+        End2 --> UI["Render Reasoning, Answer & Citation in UI"]:::function
+        UI --> Audit["Save query & metrics to audit_trail.json"]:::storage
     end
 ```
 
