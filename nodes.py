@@ -78,7 +78,7 @@ def generate_answer(query: str, docs: List[Document]) -> AnswerWithCitation:
     Uses LangChain's .with_structured_output() to force the LLM to return a Pydantic model.
     """
     # Initialize the LLM (using gemini-1.5-flash for speed/cost, but any compatible model works)
-    llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
     structured_llm = llm.with_structured_output(AnswerWithCitation)
 
     context = "\n\n".join([doc.page_content for doc in docs])
