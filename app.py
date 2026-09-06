@@ -1,5 +1,5 @@
 import streamlit as st
-from graph import app as langgraph_app
+import os
 
 # Page config
 st.set_page_config(page_title="Grounded Citation RAG")
@@ -37,8 +37,16 @@ if query:
         with st.spinner("Searching database and validating citations (this may take a few seconds)..."):
             inputs = {"question": query}
             
-            # Run the compiled LangGraph application
-            final_result = langgraph_app.invoke(inputs)
+            import requests
+            
+            api_url = os.environ.get("API_URL", "http://backend:8000/chat")
+            try:
+                response = requests.post(api_url, json={"question": query})
+                response.raise_for_status()
+                final_result = response.json()
+            except Exception as e:
+                st.error(f"Backend API Error: {str(e)}")
+                st.stop()
             
             # --- AUDIT TRAIL LOGGING ---
             import json

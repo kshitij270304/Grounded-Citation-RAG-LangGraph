@@ -6,7 +6,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 
-from nodes import retrieve_docs, AnswerWithCitation, grade_citation
+from nodes import retrieve_faiss_docs, retrieve_bm25_docs, interleave_docs, AnswerWithCitation, grade_citation
 
 load_dotenv()
 
@@ -16,23 +16,40 @@ class GraphState(TypedDict):
     Represents the state of our graph.
     """
     question: str
+    faiss_docs: List[Document]
+    bm25_docs: List[Document]
     documents: List[Document]
     generation: dict
     revision_count: int
     is_valid: bool
 
 # 2. Build the Nodes
-def retrieve_node(state: GraphState):
+def dispatch_node(state: GraphState):
+    print("\n---DISPATCH TO PARALLEL RETRIEVAL---")
+    return {}
+
+def faiss_node(state: GraphState):
     question = state["question"]
-    print(f"\n---RETRIEVE DOCS---")
-    print(f"Question: {question}")
-    
-    documents = retrieve_docs(question)
+    print(f"\n---RETRIEVE FAISS DOCS---")
+    faiss_docs = retrieve_faiss_docs(question)
+    return {"faiss_docs": faiss_docs}
+
+def bm25_node(state: GraphState):
+    question = state["question"]
+    print(f"\n---RETRIEVE BM25 DOCS---")
+    bm25_docs = retrieve_bm25_docs(question)
+    return {"bm25_docs": bm25_docs}
+
+def merge_node(state: GraphState):
+    print(f"\n---MERGE RETRIEVED DOCS---")
+    faiss_docs = state.get("faiss_docs", [])
+    bm25_docs = state.get("bm25_docs", [])
+    documents = interleave_docs(faiss_docs, bm25_docs)
     
     # Initialize revision_count if not present
     revision_count = state.get("revision_count", 0)
     
-    return {"documents": documents, "question": question, "revision_count": revision_count}
+    return {"documents": documents, "revision_count": revision_count}
 
 def validate_query_node(state: GraphState):
     question = state["question"]
@@ -64,7 +81,7 @@ def route_after_validate(state: GraphState):
     if state.get("generation"):
         # Guardrail triggered and set a canned response
         return "end"
-    return "retrieve"
+    return "dispatch"
 
 def generate_node(state: GraphState):
     print("\n---GENERATE ANSWER---")
@@ -144,7 +161,10 @@ def route_after_grade(state: GraphState):
 workflow = StateGraph(GraphState)
 
 workflow.add_node("validate", validate_query_node)
-workflow.add_node("retrieve", retrieve_node)
+workflow.add_node("dispatch", dispatch_node)
+workflow.add_node("faiss_node", faiss_node)
+workflow.add_node("bm25_node", bm25_node)
+workflow.add_node("merge", merge_node)
 workflow.add_node("generate", generate_node)
 workflow.add_node("grade", grade_node)
 
@@ -154,11 +174,20 @@ workflow.add_conditional_edges(
     "validate",
     route_after_validate,
     {
-        "retrieve": "retrieve",
+        "dispatch": "dispatch",
         "end": END
     }
 )
-workflow.add_edge("retrieve", "generate")
+
+# Parallel fan-out
+workflow.add_edge("dispatch", "faiss_node")
+workflow.add_edge("dispatch", "bm25_node")
+
+# Parallel fan-in
+workflow.add_edge("faiss_node", "merge")
+workflow.add_edge("bm25_node", "merge")
+
+workflow.add_edge("merge", "generate")
 workflow.add_edge("generate", "grade")
 workflow.add_conditional_edges(
     "grade",

@@ -13,36 +13,45 @@ FAISS_INDEX_PATH = "faiss_index"
 
 from langchain_community.retrievers import BM25Retriever
 
-def retrieve_docs(query: str) -> List[Document]:
+def retrieve_faiss_docs(query: str) -> List[Document]:
     """
-    Takes a user query, queries the FAISS index + BM25, and returns the top 3 most relevant text chunks
-    using custom Hybrid Search interleaving.
+    Queries the FAISS index and returns the top 5 most relevant text chunks (Semantic Search).
     """
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    
-    # 1. FAISS Retriever (Semantic Search)
     vectorstore = FAISS.load_local(
         FAISS_INDEX_PATH, 
         embeddings,
         allow_dangerous_deserialization=True
     )
-    # Set to k=5 for the perfect balance of accuracy and context window size
-    faiss_docs = vectorstore.similarity_search(query, k=5)
-    
-    # 2. BM25 Retriever (Keyword Search)
+    return vectorstore.similarity_search(query, k=5)
+
+def retrieve_bm25_docs(query: str) -> List[Document]:
+    """
+    Queries the BM25 index and returns the top 5 most relevant text chunks (Keyword Search).
+    """
+    import re
+    # We still need the FAISS vectorstore just to get all_docs for BM25 initialization
+    # In a fully optimized production app, this would be serialized separately.
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
+    vectorstore = FAISS.load_local(
+        FAISS_INDEX_PATH, 
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
     all_docs = list(vectorstore.docstore._dict.values())
     
-    import re
     def custom_bm25_tokenizer(text: str) -> List[str]:
         # Extract only alphanumeric words, avoiding punctuation issues like (TFEU)
         return re.findall(r'\w+', text.lower())
         
     bm25_retriever = BM25Retriever.from_documents(all_docs, preprocess_func=custom_bm25_tokenizer)
     bm25_retriever.k = 5
-    bm25_docs = bm25_retriever.invoke(query)
-    
-    # 3. Combine Results (Interleaving FAISS and BM25)
-    # This acts like a lightweight EnsembleRetriever
+    return bm25_retriever.invoke(query)
+
+def interleave_docs(faiss_docs: List[Document], bm25_docs: List[Document]) -> List[Document]:
+    """
+    Takes results from FAISS and BM25 and interleaves them, removing duplicates.
+    """
     combined_docs = []
     seen_contents = set()
     
@@ -119,7 +128,9 @@ if __name__ == "__main__":
     
     # 1. Retrieve
     print("1. Retrieving docs...")
-    retrieved_docs = retrieve_docs(test_query)
+    faiss_docs = retrieve_faiss_docs(test_query)
+    bm25_docs = retrieve_bm25_docs(test_query)
+    retrieved_docs = interleave_docs(faiss_docs, bm25_docs)
     for i, doc in enumerate(retrieved_docs):
         print(f"  Chunk {i+1} length: {len(doc.page_content)}")
     
