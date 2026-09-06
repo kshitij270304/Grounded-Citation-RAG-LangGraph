@@ -1,5 +1,6 @@
 import os
 from typing import List, Dict, TypedDict
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -16,6 +17,8 @@ class GraphState(TypedDict):
     Represents the state of our graph.
     """
     question: str
+    chat_history: List[Dict]
+    sub_queries: List[str]
     faiss_docs: List[Document]
     bm25_docs: List[Document]
     documents: List[Document]
@@ -24,32 +27,9 @@ class GraphState(TypedDict):
     is_valid: bool
 
 # 2. Build the Nodes
-def dispatch_node(state: GraphState):
-    print("\n---DISPATCH TO PARALLEL RETRIEVAL---")
-    return {}
 
-def faiss_node(state: GraphState):
-    question = state["question"]
-    print(f"\n---RETRIEVE FAISS DOCS---")
-    faiss_docs = retrieve_faiss_docs(question)
-    return {"faiss_docs": faiss_docs}
-
-def bm25_node(state: GraphState):
-    question = state["question"]
-    print(f"\n---RETRIEVE BM25 DOCS---")
-    bm25_docs = retrieve_bm25_docs(question)
-    return {"bm25_docs": bm25_docs}
-
-def merge_node(state: GraphState):
-    print(f"\n---MERGE RETRIEVED DOCS---")
-    faiss_docs = state.get("faiss_docs", [])
-    bm25_docs = state.get("bm25_docs", [])
-    documents = interleave_docs(faiss_docs, bm25_docs)
-    
-    # Initialize revision_count if not present
-    revision_count = state.get("revision_count", 0)
-    
-    return {"documents": documents, "revision_count": revision_count}
+class SubQueries(BaseModel):
+    queries: List[str] = Field(description="List of search queries")
 
 def validate_query_node(state: GraphState):
     question = state["question"]
@@ -79,24 +59,86 @@ def validate_query_node(state: GraphState):
 
 def route_after_validate(state: GraphState):
     if state.get("generation"):
-        # Guardrail triggered and set a canned response
         return "end"
-    return "dispatch"
+    return "decompose"
+
+def decompose_node(state: GraphState):
+    question = state["question"]
+    chat_history = state.get("chat_history", [])
+    print(f"\n---DECOMPOSE QUERY---")
+    
+    llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
+    structured_llm = llm.with_structured_output(SubQueries)
+    
+    history_text = "\n".join([f"{msg.get('role', 'user')}: {msg.get('content', '')}" for msg in chat_history[-4:]]) # Only use last 4 messages for context
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an AI assistant. Analyze the user's latest question and the chat history. "
+                   "If the question is complex, break it down into up to 3 simpler search queries. "
+                   "If it refers to past context (like 'it' or 'they'), resolve the pronouns into clear search queries. "
+                   "If the question is simple, just return it as a single search query."),
+        ("human", "Chat History:\n{history}\n\nLatest Question: {query}")
+    ])
+    
+    chain = prompt | structured_llm
+    
+    try:
+        res = chain.invoke({"history": history_text, "query": question})
+        sub_queries = res.queries
+    except Exception as e:
+        sub_queries = [question] # Failsafe
+        
+    print(f"Sub-queries generated: {sub_queries}")
+    return {"sub_queries": sub_queries}
+
+def dispatch_node(state: GraphState):
+    print("\n---DISPATCH TO PARALLEL RETRIEVAL---")
+    return {}
+
+def faiss_node(state: GraphState):
+    sub_queries = state.get("sub_queries", [state["question"]])
+    print(f"\n---RETRIEVE FAISS DOCS---")
+    faiss_docs = []
+    for q in sub_queries:
+        faiss_docs.extend(retrieve_faiss_docs(q))
+    return {"faiss_docs": faiss_docs}
+
+def bm25_node(state: GraphState):
+    sub_queries = state.get("sub_queries", [state["question"]])
+    print(f"\n---RETRIEVE BM25 DOCS---")
+    bm25_docs = []
+    for q in sub_queries:
+        bm25_docs.extend(retrieve_bm25_docs(q))
+    return {"bm25_docs": bm25_docs}
+
+def merge_node(state: GraphState):
+    print(f"\n---MERGE RETRIEVED DOCS---")
+    faiss_docs = state.get("faiss_docs", [])
+    bm25_docs = state.get("bm25_docs", [])
+    documents = interleave_docs(faiss_docs, bm25_docs)
+    
+    # Initialize revision_count if not present
+    revision_count = state.get("revision_count", 0)
+    
+    return {"documents": documents, "revision_count": revision_count}
+
 
 def generate_node(state: GraphState):
     print("\n---GENERATE ANSWER---")
     question = state["question"]
     documents = state["documents"]
+    chat_history = state.get("chat_history", [])
     revision_count = state.get("revision_count", 0)
     
     llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
     structured_llm = llm.with_structured_output(AnswerWithCitation)
     
     context = "\n\n".join([doc.page_content for doc in documents])
+    history_text = "\n".join([f"{msg.get('role', 'user')}: {msg.get('content', '')}" for msg in chat_history[-4:]])
     
     system_prompt = (
         "You are a strict compliance assistant. Answer the question using ONLY the provided context. "
-        "You are allowed to make obvious logical inferences (such as recognizing that a phrase followed by an acronym in parentheses defines that acronym). "
+        "You may use the chat history to understand what the user is asking about if they use pronouns like 'it'. "
         "You must extract the exact, word-for-word snippet or sentence you used to form your answer and place it in the citation field. "
         "If the answer cannot be reasonably inferred from the text, output 'Data not available'."
     )
@@ -107,13 +149,13 @@ def generate_node(state: GraphState):
         
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
-        ("human", "Context:\n{context}\n\nQuestion: {query}")
+        ("human", "Chat History:\n{history}\n\nContext:\n{context}\n\nQuestion: {query}")
     ])
     
     chain = prompt | structured_llm
     
     try:
-        result = chain.invoke({"context": context, "query": question})
+        result = chain.invoke({"history": history_text, "context": context, "query": question})
     except Exception as e:
         if "429" in str(e) or "Quota" in str(e) or "RateLimit" in str(e):
             result = AnswerWithCitation(reasoning="Google Gemini API rate limit exceeded during generation.", answer="API Error: You have hit the Gemini free-tier rate limit (15 requests per minute). Please wait 60 seconds and try again.", citation="Data not available")
@@ -161,6 +203,7 @@ def route_after_grade(state: GraphState):
 workflow = StateGraph(GraphState)
 
 workflow.add_node("validate", validate_query_node)
+workflow.add_node("decompose", decompose_node)
 workflow.add_node("dispatch", dispatch_node)
 workflow.add_node("faiss_node", faiss_node)
 workflow.add_node("bm25_node", bm25_node)
@@ -174,10 +217,11 @@ workflow.add_conditional_edges(
     "validate",
     route_after_validate,
     {
-        "dispatch": "dispatch",
+        "decompose": "decompose",
         "end": END
     }
 )
+workflow.add_edge("decompose", "dispatch")
 
 # Parallel fan-out
 workflow.add_edge("dispatch", "faiss_node")
@@ -200,21 +244,3 @@ workflow.add_conditional_edges(
 
 # Compile
 app = workflow.compile()
-
-if __name__ == "__main__":
-    # Test the LangGraph workflow
-    inputs = {"question": "What does the acronym TFEU stand for?"}
-    
-    print("Starting LangGraph execution...\n")
-    for output in app.stream(inputs):
-        for key, value in output.items():
-            # Node outputs
-            pass
-            
-    print("\nFinal Graph State:")
-    # We don't need persistent checkpointer here just simple run
-    
-    # Another way to print final output
-    final_result = app.invoke(inputs)
-    print("\nFinal Generation:")
-    print(final_result["generation"])
